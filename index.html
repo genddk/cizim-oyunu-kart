@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- PWA benzeri offline kısayol davranışı için meta etiketleri -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Çizim Oyunu Asistanı</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            touch-action: none; /* Pull-to-refresh'i engeller */
+        }
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        .blur-text {
+            filter: blur(8px);
+            user-select: none;
+            opacity: 0.5;
+        }
+        .timer-pulse {
+            animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { color: #ef4444; text-shadow: 0 0 15px rgba(239,68,68,0.5); transform: scale(1); }
+            50% { color: #f87171; text-shadow: 0 0 25px rgba(239,68,68,0.8); transform: scale(1.05); }
+        }
+        /* Modal açıkken arka plan kaymasını engellemek için */
+        .modal-open {
+            overflow: hidden !important;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 flex flex-col selection:bg-indigo-500 relative">
+
+    <!-- HEADER: Dil, Ayarlar, Mod ve Süre Seçimi -->
+    <header class="h-auto p-2 sm:p-3 bg-slate-800 shadow-lg flex flex-wrap justify-center sm:justify-between items-center gap-2 z-10">
+        
+        <!-- Language & Settings -->
+        <div class="flex items-center bg-slate-700 rounded-lg p-1">
+            <button id="lang-tr" class="px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold bg-indigo-600 text-white transition-colors" onclick="setLanguage('tr')">TR</button>
+            <button id="lang-en" class="px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors" onclick="setLanguage('en')">EN</button>
+            <div class="w-px h-6 bg-slate-600 mx-1"></div>
+            <!-- Ayarlar (Çark) İkonu -->
+            <button onclick="openSettings()" class="p-1.5 rounded-md text-slate-300 hover:text-white hover:bg-slate-600 transition-colors" title="Kelimeleri Düzenle">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mode Selection -->
+        <div class="flex items-center bg-slate-700 rounded-lg p-1 w-full sm:w-auto justify-center">
+            <button id="mode-classic" class="px-3 py-1.5 rounded-md text-sm font-semibold bg-purple-500 text-white transition-colors flex-1" onclick="setMode('classic')">Klasik</button>
+            <button id="mode-double" class="px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1" onclick="setMode('double')">2'li</button>
+            <button id="mode-triple" class="px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1" onclick="setMode('triple')">3'lü</button>
+        </div>
+
+        <!-- Difficulty Selection -->
+        <div id="diffContainer" class="flex items-center bg-slate-700 rounded-lg p-1 w-full sm:w-auto justify-center transition-all">
+            <button id="diff-easy" class="px-3 py-1.5 rounded-md text-sm font-semibold bg-emerald-500 text-white transition-colors flex-1" onclick="setDifficulty('easy')">Kolay</button>
+            <button id="diff-medium" class="px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1" onclick="setDifficulty('medium')">Orta</button>
+            <button id="diff-hard" class="px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1" onclick="setDifficulty('hard')">Zor</button>
+        </div>
+
+        <!-- Timer Options -->
+        <div class="flex items-center bg-slate-700 rounded-lg p-1">
+            <button id="time-30" class="px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors" onclick="setTimerDuration(30)">30s</button>
+            <button id="time-60" class="px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold bg-blue-500 text-white transition-colors" onclick="setTimerDuration(60)">60s</button>
+            <button id="time-90" class="px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors" onclick="setTimerDuration(90)">90s</button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT: Ekrana tam sığması için padding ve gap değerleri düşürüldü -->
+    <main class="flex-1 flex flex-col items-center justify-center p-2 sm:p-4 gap-3 sm:gap-4 relative w-full h-full max-h-full">
+        
+        <!-- Word Card (Boyutu biraz küçültüldü) -->
+        <div class="bg-slate-800 rounded-3xl shadow-2xl p-4 sm:p-6 w-full max-w-3xl flex flex-col items-center justify-center relative min-h-[160px] sm:min-h-[180px] border border-slate-700 transition-transform duration-200">
+            
+            <div id="wordContainer" class="w-full flex items-center justify-center mb-2 sm:mb-4 min-h-[60px]">
+                <h2 class="text-4xl sm:text-5xl font-extrabold text-center text-white transition-all duration-300 tracking-tight break-words px-2 blur-text">
+                    Gizli Kelime
+                </h2>
+            </div>
+            
+            <div class="mt-auto w-full flex justify-center">
+                <button id="toggleBtn" onclick="toggleWord()" class="px-5 py-2.5 rounded-full bg-slate-600 hover:bg-slate-500 text-white font-semibold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md text-sm sm:text-base">
+                    <!-- Eye Icon -->
+                    <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span id="toggleText">Kelimeyi Göster</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sıradaki Kelime Butonu (Kutunun hemen altına alındı) -->
+        <button onclick="nextWord()" class="w-full max-w-sm px-5 py-3 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-indigo-500/30 z-10 text-sm sm:text-base">
+            <span id="nextBtnText">Sıradaki Kelime</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </button>
+
+        <!-- Timer Display & Controls (Ekranın altından kesilmemesi için margin ayarlandı) -->
+        <div class="flex flex-col items-center mt-2 sm:mt-4">
+            <!-- Circular Modern Timer -->
+            <div class="relative flex items-center justify-center w-32 h-32 sm:w-40 sm:h-40">
+                <svg class="transform -rotate-90 w-full h-full drop-shadow-lg" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-width="6" fill="transparent" class="text-slate-700" />
+                    <circle id="timerProgress" cx="50" cy="50" r="45" stroke="currentColor" stroke-width="6" fill="transparent" stroke-linecap="round" class="text-indigo-500 transition-all duration-1000 ease-linear" stroke-dasharray="283" stroke-dashoffset="0" />
+                </svg>
+                <div id="timerDisplay" class="absolute text-2xl sm:text-3xl font-mono font-bold text-slate-100">
+                    01:00
+                </div>
+            </div>
+            
+            <div class="flex gap-4 mt-4">
+                <!-- Play/Pause Butonu Birleştirildi -->
+                <button id="playPauseBtn" onclick="toggleTimer()" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-emerald-500 hover:bg-emerald-400 flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform">
+                    <!-- Play Icon -->
+                    <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sm:h-7 sm:w-7 ml-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>
+                    <!-- Pause Icon (Hidden by default) -->
+                    <svg id="pauseIcon" class="hidden h-6 w-6 sm:h-7 sm:w-7" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                </button>
+                <button onclick="resetTimer()" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sm:h-7 sm:w-7" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4">
+        <div class="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col h-[85vh] sm:h-auto sm:max-h-[85vh] border border-slate-600">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center p-4 border-b border-slate-700">
+                <h3 class="text-xl font-bold text-white">Kelime Ayarları</h3>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-4 flex-1 flex flex-col gap-4 overflow-hidden">
+                <p class="text-sm text-slate-300">Kelimeleri virgülle ayırarak düzenleyebilirsiniz. Yaptığınız değişiklikler bu cihazda kalıcı olarak kaydedilecektir.</p>
+                
+                <div class="flex gap-2">
+                    <select id="editLang" onchange="loadWordsToEditor()" class="bg-slate-700 text-white rounded-md px-3 py-2 border border-slate-600 outline-none focus:border-indigo-500">
+                        <option value="tr">Türkçe</option>
+                        <option value="en">İngilizce</option>
+                    </select>
+                    <select id="editDiff" onchange="loadWordsToEditor()" class="bg-slate-700 text-white rounded-md px-3 py-2 border border-slate-600 outline-none focus:border-indigo-500 flex-1">
+                        <option value="easy">Kolay</option>
+                        <option value="medium">Orta</option>
+                        <option value="hard">Zor</option>
+                    </select>
+                </div>
+
+                <textarea id="wordsEditor" class="w-full flex-1 bg-slate-900 text-slate-200 p-3 rounded-lg border border-slate-600 outline-none focus:border-indigo-500 resize-none font-mono text-sm shadow-inner"></textarea>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-slate-700 flex flex-col sm:flex-row justify-between gap-3">
+                <button onclick="resetToDefaults()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors text-sm">
+                    Varsayılana Dön
+                </button>
+                <div class="flex gap-3">
+                    <button onclick="closeSettings()" class="flex-1 sm:flex-none px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg font-semibold transition-colors text-sm">
+                        İptal
+                    </button>
+                    <button onclick="saveSettings()" class="flex-1 sm:flex-none px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition-colors text-sm shadow-lg shadow-indigo-500/20">
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DEFAULT WORDS: Tamamen somut eşya/hayvan/nesnelerden oluşan temizlenmiş liste.
+        // Bu yapı "Varsayılana Dön" özelliği için referans olarak tutulur.
+        const defaultWordsData = {
+            tr: {
+                easy: "Elma,Ev,Araba,Kedi,Köpek,Güneş,Çiçek,Ağaç,Kitap,Kalem,Kuş,Balık,Masa,Sandalye,Kapı,Pencere,Ay,Yıldız,Göz,Kulak,Burun,Ağız,El,Ayak,Top,Gemi,Uçak,Tren,Otobüs,Saat,Gözlük,Şapka,Ayakkabı,Çorap,Pantolon,Gömlek,Yatak,Yastık,Koltuk,Televizyon,Telefon,Bilgisayar,Fare,Klavye,Kamera,Makas,Bıçak,Çatal,Kaşık,Tabak,Bardak,Şişe,Kutu,Çanta,Cüzdan,Anahtar,Şemsiye,Bulut,Ateş,Su,Dağ,Orman,Göl,Deniz,Plaj,Ada,Buz,Dünya,Roket,Astronot,Elbise,Etek,Battaniye,Halı,Perde,Ayna,Lamba,Mum,Odun,Çekiç,Çivi,Testere,Balta,Bebek,Bisiklet,Kamyon,Taksi,Sandviç,Hamburger,Pizza,Dondurma,Pasta,Çikolata,Peynir,Ekmek,Yumurta,Süt,Çay,Kahve,Muz,Çilek,Karpuz,Üzüm,Portakal,Limon,Domates,Patates,Havuç,Soğan,Aslan,Kaplan,Fil,Ayı,Tavşan,Sincap,Kurbağa,Yılan,Örümcek,Arı,Kelebek,Karınca,İnek,At,Koyun,Tavuk,Horoz,Yunus,Balina,Köpekbalığı,Ahtapot,Yengeç,Denizyıldızı,Gül,Papatya,Havlu,Sabun,Şampuan,Diş,Tarak,Fırça,Ruj,Küpe,Yüzük,Kolye,Bilezik,Eldiven,Atkı,Mont,Bot,Çizme,Sandalet,Şort,Kemer,Bilet,Para,Tahta,Silgi,Defter,Harita,Toprak,Kum,Kaya,Taş,Yaprak,Dal,Kök,Boynuz,Kuyruk,Kanat,Tüy,Gaga,Pati,Tırnak,Kemik,Kalp,Beyin,Mide,Bacak,Kol,Parmak,Diz,Dirsek,Boyun,Sırt",
+                
+                medium: "Helikopter,Traktör,Denizaltı,Zürafa,Timsah,Su aygırı,Gergedan,Kanguru,Leopar,Çita,Kurt,Tilki,Köstebek,Kertenkele,Kaplumbağa,Salyangoz,Akrep,Sinek,Sivrisinek,Uğur böceği,Çekirge,Kalamar,Istakoz,Denizanası,Denizatı,Fok,Penguen,Martı,Karga,Baykuş,Kartal,Şahin,Güvercin,Papağan,Deve kuşu,Leylek,Flamingo,Kuğu,Ördek,Kaz,Hindi,Civciv,Yoğurt,Ayran,Meyve suyu,Gazoz,Kola,Sosisli,Patates kızartması,Döner,Kebap,Lahmacun,Pide,Mantı,Makarna,Pilav,Çorba,Salata,Kurabiye,Şeker,Sakız,Bal,Reçel,Tereyağı,Mısır,Buğday,Pirinç,Mercimek,Nohut,Fasulye,Bezelye,Badem,Ceviz,Fındık,Fıstık,Kestane,Çekirdek,Kavun,Kiraz,Vişne,Erik,Kayısı,Şeftali,Armut,Ayva,Nar,İncir,Mandalina,Greyfurt,Kivi,Ananas,Hindistan cevizi,Mango,Avokado,Biber,Patlıcan,Kabak,Turp,Sarımsak,Pırasa,Kereviz,Ispanak,Lahana,Karnabahar,Brokoli,Marul,Maydanoz,Nane,Mantar,Zeytin,Dürbün,Teleskop,Mikroskop,Büyüteç,Bavul,Sırt çantası,Kask,Bere,Taç,Toka,Bornoz,Küvet,Peçete,Kase,Fincan,Kupa,Tencere,Tava,Çaydanlık,Cezve,Süzgeç,Rende,Fırın,Ocak,Buzdolabı,Ütü,Vantilatör,Klima,Isıtıcı,Şömine,Kibrit,Çakmak,El feneri,Pil,Priz,Kablo,Şarj aleti,Balkon,Çit,Garaj,Havuz,Posta kutusu,Çöp kutusu,Süpürge,Kova,Paspas,Tebeşir,Sulu boya,Pastel boya,Palet,Sözlük,Dergi,Gazete,Küre,Pusula,Cetvel,Kılıç,Kalkan,Zırh,Matkap,Zımpara,Merdiven,Tuğla,Çimento",
+                
+                hard: "Rollercoaster,Orkestra,Trafik kazası,Müze,Gölge,Kasırga,Çöl,Kutup ayısı,Eskimo iglosu,Uzay istasyonu,Denizaltı keşfi,Büyük Kanyon,Piramitler,Çin Seddi,Eyfel Kulesi,Özgürlük Heykeli,Kolezyum,Taj Mahal,Volkan patlaması,Deprem,Tsunami,Hortum,Sel,Çığ,Orman yangını,Kar fırtınası,Kum fırtınası,Güneş tutulması,Ay tutulması,Kutup ışıkları,Göktaşı yağmuru,Samanyolu,Kara delik,Süpernova,Uzay yürüyüşü,Ay'a iniş,Mars kolonisi,Uçan daire,Zaman makinesi,Işınlanma,Görünmezlik,Süper kahraman,Kötü adam,Canavar avcısı,Ejderha terbiyecisi,Büyücü düellosu,Peri masalı,Mitoloji,Efsane,Destan,Tarih öncesi,Dinozor çağı,Buz devri,Taş devri,Tunç devri,Demir devri,Orta çağ,Rönesans,Sanayi devrimi,Bilgi çağı,Yapay zeka,Robotik,Nanoteknoloji,Kuantum bilgisayar,Sanal gerçeklik,Artırılmış gerçeklik,Metaverse,Kripto para,Blokzincir,Hacker,Siber güvenlik,İnternet,Sosyal medya,E-ticaret,Dijital pazarlama,Fenomen,Trol,Viral,Meme,Emoji,GIF,Selfie,Vlog,Podcast,Canlı yayın,Espor,Oyun konsolu,Oyun kumandası,Oyun içi satın alma,Bölüm sonu canavarı,Seviye atlama,Deneyim puanı,Görev,Başarı,Kupa,Madalya,Ödül,Şampiyon,Turnuva,Lig,Sezon,Takım,Oyuncu,Antrenör,Hakem,Taraftar,Stadyum,Arena,Saha,Kort,Pist,Ring,Minder,Kale,Potaya,Ağ,File,Raket,Sopa,Baton,Kürek,Yelken,Sörf tahtası,Paten,Kaykay,Kar kayağı,Buz pateni,Kızak,Bungee jumping,Paraşüt,Yamaç paraşütü,Dalgıç giysisi,Oksijen tüpü,Palet,Şnorkel,Can yeleği,Cankurtaran simidi,Kamp ateşi,Çadır,Uyku tulumu,Mat,Kamp sandalyesi,Kamp masası,Portatif ocak,Termos,Matara,Kamp bıçağı,İp,Düğüm,Karabina,Tırmanış kemeri,Tozluk,Kazma,Krampon,Çığ sondası,Çığ telsizi,İlkyardım çantası,Sedyeyi,Ambulans,İtfaiye aracı,Polis arabası,Kurtarma helikopteri,Sahil güvenlik,Arama kurtarma,Acil durum,Alarm,Siren,Yangın söndürücü,Yangın musluğu,Yangın merdiveni,Tahliye planı,Güvenlik kamerası,Dedektör,X-ray cihazı,Parmak izi okuyucu,Göz tarayıcı,Şifre,Kasa,Zırhlı araç,Banka,Para,Altın,Külçe,Elmas,Mücevher,Hazine sandığı"
+            },
+            en: {
+                easy: "Apple,House,Car,Cat,Dog,Sun,Flower,Tree,Book,Pen,Bird,Fish,Table,Chair,Door,Window,Moon,Star,Eye,Ear,Nose,Mouth,Hand,Foot,Ball,Ship,Plane,Train,Bus,Clock,Glasses,Hat,Shoe,Sock,Pants,Shirt,Bed,Pillow,Sofa,TV,Phone,Computer,Mouse,Keyboard,Camera,Scissors,Knife,Fork,Spoon,Plate,Glass,Bottle,Box,Bag,Wallet,Key,Umbrella,Cloud,Fire,Water,Mountain,Forest,Lake,Sea,Beach,Island,Ice,Earth,Rocket,Astronaut,Dress,Skirt,Blanket,Carpet,Curtain,Mirror,Lamp,Candle,Wood,Hammer,Nail,Saw,Axe,Baby,Bicycle,Truck,Taxi,Sandwich,Hamburger,Pizza,Ice cream,Cake,Chocolate,Cheese,Bread,Egg,Milk,Tea,Coffee,Banana,Strawberry,Watermelon,Grape,Orange,Lemon,Tomato,Potato,Carrot,Onion,Lion,Tiger,Elephant,Bear,Rabbit,Squirrel,Frog,Snake,Spider,Bee,Butterfly,Ant,Cow,Horse,Sheep,Chicken,Rooster,Dolphin,Whale,Shark,Octopus,Crab,Starfish,Rose,Daisy,Towel,Soap,Shampoo,Tooth,Comb,Brush,Lipstick,Earring,Ring,Necklace,Bracelet,Glove,Scarf,Coat,Boot,Slipper,Sandal,Shorts,Belt,Ticket,Money,Board,Eraser,Notebook,Map,Soil,Sand,Rock,Stone,Leaf,Branch,Root,Horn,Tail,Wing,Feather,Beak,Paw,Nail,Bone,Heart,Brain,Stomach,Leg,Arm,Finger,Knee,Elbow,Neck,Back",
+                
+                medium: "Helicopter,Tractor,Submarine,Giraffe,Crocodile,Hippo,Rhino,Kangaroo,Leopard,Cheetah,Wolf,Fox,Mole,Lizard,Turtle,Snail,Scorpion,Fly,Mosquito,Ladybug,Grasshopper,Squid,Lobster,Jellyfish,Seahorse,Seal,Penguin,Seagull,Crow,Owl,Eagle,Hawk,Pigeon,Parrot,Ostrich,Stork,Flamingo,Swan,Duck,Goose,Turkey,Chick,Yogurt,Juice,Soda,Cola,Hotdog,Fries,Kebab,Pasta,Rice,Soup,Salad,Cookie,Candy,Gum,Honey,Jam,Butter,Corn,Wheat,Lentil,Chickpea,Bean,Pea,Almond,Walnut,Hazelnut,Peanut,Chestnut,Sunflower seed,Melon,Cherry,Plum,Apricot,Peach,Pear,Quince,Pomegranate,Fig,Tangerine,Grapefruit,Kiwi,Pineapple,Coconut,Mango,Avocado,Pepper,Eggplant,Zucchini,Radish,Garlic,Leek,Celery,Spinach,Cabbage,Cauliflower,Broccoli,Lettuce,Parsley,Mint,Mushroom,Olive,Binoculars,Telescope,Microscope,Magnifier,Suitcase,Backpack,Helmet,Beanie,Crown,Hairclip,Bathrobe,Bathtub,Napkin,Bowl,Cup,Mug,Pot,Pan,Teapot,Strainer,Grater,Oven,Stove,Refrigerator,Iron,Fan,Air conditioner,Heater,Fireplace,Match,Lighter,Flashlight,Battery,Socket,Cable,Charger,Balcony,Fence,Garage,Pool,Mailbox,Trash can,Broom,Bucket,Mop,Chalk,Watercolor,Crayon,Palette,Dictionary,Magazine,Newspaper,Globe,Compass,Ruler,Sword,Shield,Armor,Drill,Sandpaper,Ladder,Brick,Cement",
+                
+                hard: "Rollercoaster,Orchestra,Traffic accident,Museum,Shadow,Hurricane,Desert,Polar bear,Igloo,Space station,Deep sea diving,Grand Canyon,Pyramids,Great Wall of China,Eiffel Tower,Statue of Liberty,Colosseum,Taj Mahal,Volcanic eruption,Earthquake,Tsunami,Tornado,Flood,Avalanche,Forest fire,Blizzard,Sandstorm,Solar eclipse,Lunar eclipse,Northern lights,Meteor shower,Milky Way,Black hole,Supernova,Spacewalk,Moon landing,Mars colony,UFO,Time machine,Teleportation,Invisibility,Superhero,Villain,Monster hunter,Dragon trainer,Wizard duel,Fairy tale,Mythology,Legend,Epic,Prehistoric,Dinosaur age,Ice age,Stone age,Bronze age,Iron age,Middle ages,Renaissance,Industrial revolution,Information age,Artificial intelligence,Robotics,Nanotechnology,Quantum computer,Virtual reality,Augmented reality,Metaverse,Cryptocurrency,Blockchain,Hacker,Cyber security,Internet,Social media,E-commerce,Digital marketing,Influencer,Troll,Viral,Meme,Emoji,GIF,Selfie,Vlog,Podcast,Livestream,Esports,Game console,Game controller,In-app purchase,Boss fight,Level up,Experience point,Quest,Achievement,Trophy,Medal,Award,Champion,Tournament,League,Season,Team,Player,Coach,Referee,Fan,Stadium,Arena,Pitch,Court,Track,Ring,Mat,Goal,Basket,Net,Racket,Bat,Club,Paddle,Sail,Surfboard,Skate,Skateboard,Ski,Ice skate,Sled,Bungee jumping,Parachute,Paragliding,Wetsuit,Oxygen tank,Flippers,Snorkel,Life jacket,Lifebuoy,Campfire,Tent,Sleeping bag,Camp chair,Camp table,Portable stove,Thermos,Canteen,Camp knife,Rope,Knot,Carabiner,Climbing harness,Gaiters,Ice axe,Crampons,Avalanche probe,Avalanche transceiver,First aid kit,Stretcher,Ambulance,Fire engine,Police car,Rescue helicopter,Coast guard,Search and rescue,Emergency,Alarm,Siren,Fire extinguisher,Fire hydrant,Fire escape,Evacuation plan,Security camera,Detector,X-ray machine,Fingerprint scanner,Eye scanner,Password,Safe,Armored car,Bank,Money,Gold,Bullion,Diamond,Jewelry,Treasure chest"
+            }
+        };
+
+        // KELİME YÖNETİMİ & LOCALSTORAGE
+        let appWords = {};
+        
+        function initWords() {
+            const saved = localStorage.getItem('drawingGameWords');
+            if (saved) {
+                try {
+                    appWords = JSON.parse(saved);
+                } catch(e) {
+                    appWords = JSON.parse(JSON.stringify(defaultWordsData));
+                }
+            } else {
+                appWords = JSON.parse(JSON.stringify(defaultWordsData));
+                localStorage.setItem('drawingGameWords', JSON.stringify(appWords));
+            }
+        }
+        initWords();
+
+        // UYGULAMA DURUMU (STATE)
+        const state = {
+            lang: 'tr',
+            mode: 'classic',
+            diff: 'easy',
+            timerDuration: 60,
+            timeLeft: 60,
+            timerId: null,
+            isPlaying: false,
+            currentWords: [],
+            isWordHidden: true
+        };
+
+        // ARAYÜZ METİNLERİ
+        const uiTexts = {
+            tr: {
+                easy: 'Kolay', medium: 'Orta', hard: 'Zor',
+                classic: 'Klasik', double: "2'li", triple: "3'lü",
+                next: 'Sıradaki Kelime',
+                show: 'Kelimeyi Göster', hide: 'Gizle',
+                hiddenWord: 'Gizli Kelime', hiddenWords: 'Gizli Kelimeler',
+                points: 'Puan'
+            },
+            en: {
+                easy: 'Easy', medium: 'Medium', hard: 'Hard',
+                classic: 'Classic', double: '2 Words', triple: '3 Words',
+                next: 'Next Word',
+                show: 'Show', hide: 'Hide',
+                hiddenWord: 'Hidden Word', hiddenWords: 'Hidden Words',
+                points: 'Pts'
+            }
+        };
+
+        // DOM Elementleri
+        const wordContainer = document.getElementById('wordContainer');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const toggleText = document.getElementById('toggleText');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const nextBtnText = document.getElementById('nextBtnText');
+        const diffContainer = document.getElementById('diffContainer');
+        
+        const langTr = document.getElementById('lang-tr');
+        const langEn = document.getElementById('lang-en');
+        const modeClassic = document.getElementById('mode-classic');
+        const modeDouble = document.getElementById('mode-double');
+        const modeTriple = document.getElementById('mode-triple');
+        const diffEasy = document.getElementById('diff-easy');
+        const diffMedium = document.getElementById('diff-medium');
+        const diffHard = document.getElementById('diff-hard');
+        const time30 = document.getElementById('time-30');
+        const time60 = document.getElementById('time-60');
+        const time90 = document.getElementById('time-90');
+
+        function updateUINames() {
+            const texts = uiTexts[state.lang];
+            
+            modeClassic.innerText = texts.classic;
+            modeDouble.innerText = texts.double;
+            modeTriple.innerText = texts.triple;
+            
+            diffEasy.innerText = texts.easy;
+            diffMedium.innerText = texts.medium;
+            diffHard.innerText = texts.hard;
+            nextBtnText.innerText = texts.next;
+            
+            renderWordContainer();
+        }
+
+        function setLanguage(lang) {
+            state.lang = lang;
+            
+            if (lang === 'tr') {
+                langTr.className = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold bg-indigo-600 text-white transition-colors";
+                langEn.className = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors";
+            } else {
+                langEn.className = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold bg-indigo-600 text-white transition-colors";
+                langTr.className = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors";
+            }
+            
+            updateUINames();
+            nextWord();
+        }
+
+        function setDifficulty(diff) {
+            state.diff = diff;
+            const activeClass = "px-3 py-1.5 rounded-md text-sm font-semibold text-white transition-colors flex-1 ";
+            const inactiveClass = "px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1";
+            
+            diffEasy.className = inactiveClass;
+            diffMedium.className = inactiveClass;
+            diffHard.className = inactiveClass;
+
+            if (diff === 'easy') diffEasy.className = activeClass + "bg-emerald-500";
+            if (diff === 'medium') diffMedium.className = activeClass + "bg-amber-500";
+            if (diff === 'hard') diffHard.className = activeClass + "bg-red-500";
+
+            nextWord();
+        }
+
+        function setMode(mode) {
+            state.mode = mode;
+            const activeClass = "px-3 py-1.5 rounded-md text-sm font-semibold text-white transition-colors flex-1 bg-purple-500";
+            const inactiveClass = "px-3 py-1.5 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors flex-1";
+            
+            modeClassic.className = inactiveClass;
+            modeDouble.className = inactiveClass;
+            modeTriple.className = inactiveClass;
+
+            if (mode === 'classic') modeClassic.className = activeClass;
+            if (mode === 'double') modeDouble.className = activeClass;
+            if (mode === 'triple') modeTriple.className = activeClass;
+
+            // Klasik mod değilse Zorluk seçimini gizle
+            if (mode === 'classic') {
+                diffContainer.classList.remove('hidden');
+                diffContainer.classList.add('flex');
+            } else {
+                diffContainer.classList.add('hidden');
+                diffContainer.classList.remove('flex');
+            }
+
+            nextWord();
+        }
+
+        function setTimerDuration(seconds) {
+            state.timerDuration = seconds;
+            
+            const activeClass = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold bg-blue-500 text-white transition-colors";
+            const inactiveClass = "px-2 py-1.5 sm:px-3 rounded-md text-sm font-semibold text-slate-300 hover:text-white transition-colors";
+            
+            time30.className = inactiveClass;
+            time60.className = inactiveClass;
+            time90.className = inactiveClass;
+
+            if (seconds === 30) time30.className = activeClass;
+            if (seconds === 60) time60.className = activeClass;
+            if (seconds === 90) time90.className = activeClass;
+
+            resetTimer();
+        }
+
+        function getRandomWord(difficultyParam) {
+            // difficultyParam ile çağrılırsa onu, yoksa state.diff kullanır
+            const diff = difficultyParam || state.diff;
+            let rawString = appWords[state.lang][diff];
+            if (!rawString || rawString.trim() === "") {
+                return "Kelime Listesi Boş!";
+            }
+            const list = rawString.split(',').map(w => w.trim()).filter(w => w !== "");
+            const randomIndex = Math.floor(Math.random() * list.length);
+            return list[randomIndex] || "Hata";
+        }
+
+        function renderWordContainer() {
+            const texts = uiTexts[state.lang];
+            
+            if (state.isWordHidden) {
+                toggleText.innerText = texts.show;
+                toggleBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                    </svg>
+                    <span>${texts.show}</span>
+                `;
+                
+                const hiddenTitle = state.mode === 'classic' ? texts.hiddenWord : texts.hiddenWords;
+                wordContainer.innerHTML = `<h2 class="text-4xl sm:text-5xl font-extrabold text-center text-white transition-all duration-300 tracking-tight break-words px-2 blur-text">${hiddenTitle}</h2>`;
+            } else {
+                toggleText.innerText = texts.hide;
+                toggleBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd" />
+                        <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                    </svg>
+                    <span>${texts.hide}</span>
+                `;
+                
+                if (state.mode === 'classic') {
+                    const color = state.diff === 'easy' ? 'text-emerald-400' : (state.diff === 'medium' ? 'text-amber-400' : 'text-red-400');
+                    wordContainer.innerHTML = `<h2 class="text-4xl sm:text-5xl font-extrabold text-center ${color} transition-all duration-300 tracking-tight break-words px-2">${state.currentWords[0].text}</h2>`;
+                } else {
+                    let html = '<div class="flex flex-col sm:flex-row gap-6 sm:gap-4 w-full justify-center items-center divide-y sm:divide-y-0 sm:divide-x divide-slate-600/50 py-2">';
+                    state.currentWords.forEach(w => {
+                        let colorClass = "text-white";
+                        if (w.diff === 'easy') colorClass = "text-emerald-400";
+                        if (w.diff === 'medium') colorClass = "text-amber-400";
+                        if (w.diff === 'hard') colorClass = "text-red-400";
+
+                        html += `
+                        <div class="flex flex-col items-center sm:px-6 w-full pt-4 sm:pt-0 first:pt-0">
+                            <span class="text-3xl sm:text-4xl font-bold ${colorClass} text-center break-words">${w.text}</span>
+                            <span class="text-[11px] sm:text-xs text-slate-400 mt-1 sm:mt-2 font-medium tracking-widest uppercase bg-slate-900/50 px-2 py-1 rounded-md border border-slate-700/50">${w.points} ${texts.points}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    wordContainer.innerHTML = html;
+                }
+            }
+        }
+
+        function toggleWord() {
+            state.isWordHidden = !state.isWordHidden;
+            renderWordContainer();
+        }
+
+        function nextWord() {
+            if (state.mode === 'classic') {
+                state.currentWords = [{ text: getRandomWord(state.diff), points: null, diff: state.diff }];
+            } else if (state.mode === 'double') {
+                state.currentWords = [
+                    { text: getRandomWord('easy'), points: 1, diff: 'easy' },
+                    { text: getRandomWord('medium'), points: 2, diff: 'medium' }
+                ];
+            } else if (state.mode === 'triple') {
+                state.currentWords = [
+                    { text: getRandomWord('easy'), points: 1, diff: 'easy' },
+                    { text: getRandomWord('medium'), points: 2, diff: 'medium' },
+                    { text: getRandomWord('hard'), points: 3, diff: 'hard' }
+                ];
+            }
+
+            state.isWordHidden = true;
+            resetTimer(); 
+            
+            renderWordContainer();
+            
+            wordContainer.parentElement.classList.remove('scale-95');
+            void wordContainer.parentElement.offsetWidth;
+            wordContainer.parentElement.classList.add('scale-100');
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateTimerUI() {
+            timerDisplay.innerText = formatTime(state.timeLeft);
+            
+            const circle = document.getElementById('timerProgress');
+            const circumference = 283; 
+            const progress = state.timeLeft / state.timerDuration;
+            const offset = circumference - (progress * circumference);
+            circle.style.strokeDashoffset = offset;
+            
+            if (state.timeLeft <= 10 && state.timeLeft > 0) {
+                timerDisplay.classList.add('timer-pulse');
+                circle.classList.remove('text-indigo-500');
+                circle.classList.add('text-red-500');
+            } else if (state.timeLeft === 0) {
+                timerDisplay.classList.remove('timer-pulse');
+                circle.classList.remove('text-indigo-500');
+                circle.classList.add('text-red-500');
+            } else {
+                timerDisplay.classList.remove('timer-pulse');
+                circle.classList.remove('text-red-500');
+                circle.classList.add('text-indigo-500');
+            }
+        }
+
+        function toggleTimer() {
+            if (state.isPlaying) {
+                clearInterval(state.timerId);
+                state.isPlaying = false;
+                updatePlayPauseUI();
+            } else {
+                if (state.timeLeft === 0) return;
+                state.isPlaying = true;
+                updatePlayPauseUI();
+                state.timerId = setInterval(() => {
+                    state.timeLeft--;
+                    updateTimerUI();
+                    
+                    if (state.timeLeft <= 0) {
+                        clearInterval(state.timerId);
+                        state.isPlaying = false;
+                        state.timeLeft = 0;
+                        updateTimerUI();
+                        updatePlayPauseUI();
+                    }
+                }, 1000);
+            }
+        }
+
+        function updatePlayPauseUI() {
+            const btn = document.getElementById('playPauseBtn');
+            const playIcon = document.getElementById('playIcon');
+            const pauseIcon = document.getElementById('pauseIcon');
+            
+            if (state.isPlaying) {
+                btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-400');
+                btn.classList.add('bg-amber-500', 'hover:bg-amber-400');
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                btn.classList.remove('bg-amber-500', 'hover:bg-amber-400');
+                btn.classList.add('bg-emerald-500', 'hover:bg-emerald-400');
+                pauseIcon.classList.add('hidden');
+                playIcon.classList.remove('hidden');
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(state.timerId);
+            state.isPlaying = false;
+            state.timeLeft = state.timerDuration;
+            updateTimerUI();
+            updatePlayPauseUI();
+        }
+
+        // SETTINGS (AYARLAR) YÖNETİMİ
+        const settingsModal = document.getElementById('settingsModal');
+        const editLang = document.getElementById('editLang');
+        const editDiff = document.getElementById('editDiff');
+        const wordsEditor = document.getElementById('wordsEditor');
+
+        function openSettings() {
+            settingsModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+            // Mevcut durumu ayarlara yansıt
+            editLang.value = state.lang;
+            editDiff.value = state.diff;
+            loadWordsToEditor();
+        }
+
+        function closeSettings() {
+            settingsModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        }
+
+        function loadWordsToEditor() {
+            const l = editLang.value;
+            const d = editDiff.value;
+            wordsEditor.value = appWords[l][d];
+        }
+
+        function saveSettings() {
+            const l = editLang.value;
+            const d = editDiff.value;
+            
+            // Metin kutusundaki veriyi temizleyip kaydet
+            const rawText = wordsEditor.value;
+            const cleanedText = rawText.split(',')
+                                       .map(w => w.trim())
+                                       .filter(w => w !== "")
+                                       .join(',');
+            
+            appWords[l][d] = cleanedText;
+            
+            // LocalStorage'a yaz
+            localStorage.setItem('drawingGameWords', JSON.stringify(appWords));
+            
+            // Eğer değiştirilen ayarlar, kullanıcının o an oynadığı ayarlarla aynıysa kelimeyi yenile
+            if (state.lang === l && state.diff === d) {
+                nextWord();
+            }
+            
+            closeSettings();
+        }
+
+        function resetToDefaults() {
+            if(confirm("Tüm kelime listeleri orijinal haline dönecek. Emin misiniz?")) {
+                appWords = JSON.parse(JSON.stringify(defaultWordsData));
+                localStorage.setItem('drawingGameWords', JSON.stringify(appWords));
+                loadWordsToEditor();
+                nextWord();
+            }
+        }
+
+        // İLK YÜKLEME
+        window.onload = () => {
+            setLanguage('tr'); 
+            setTimerDuration(60); 
+        };
+
+    </script>
+</body>
+</html>
